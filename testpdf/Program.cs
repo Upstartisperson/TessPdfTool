@@ -173,7 +173,7 @@ namespace MulitThreadedRender
 
                     string pdfName = Console.ReadLine();
 
-                    CombinePdfs(GetFileSeries(pdfDirectory)).Save(pdfDirectory + pdfName);
+                    CombinePdfs(GetFileSeries(pdfDirectory)).Save(pdfDirectory + pdfName + ".pdf");
 
                     break;
                
@@ -301,6 +301,7 @@ namespace MulitThreadedRender
                 resetevents.Add(reset); //so cool wanna code but cant
                 threadData workerData = new threadData(workerFile.ToArray(), sb.ToString(), reset); //Need better output paths that are indivual
                 ThreadPool.QueueUserWorkItem(Render, workerData);
+                pdfNames[t] += ".pdf";
 
             }
 
@@ -331,7 +332,7 @@ namespace MulitThreadedRender
             PdfDocument mainPdf = new PdfDocument();
             for (int t = 0; t < pdfPaths.Length; t++)
             {
-                PdfDocument activePdf = PdfReader.Open(pdfPaths[t] + ".pdf", PdfDocumentOpenMode.Import);
+                PdfDocument activePdf = PdfReader.Open(pdfPaths[t], PdfDocumentOpenMode.Import);
                 for (int j = 0; j < activePdf.PageCount; j++)
                 {
                     mainPdf.AddPage(activePdf.Pages[j]);
