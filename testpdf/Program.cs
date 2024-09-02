@@ -142,7 +142,7 @@ namespace MulitThreadedRender
                     ManualResetEvent reset = new ManualResetEvent(false);
                     string image = GetPath();
 
-                    string pdfPath = Regex.Replace(image, ".(jpeg | png)$", "pdf");
+                    string pdfPath = Regex.Replace(image, "(.png)|(.jpeg)", string.Empty);
 
                     Render(new threadData(new string[] { image.ToString() }, pdfPath, reset));
 
@@ -155,7 +155,7 @@ namespace MulitThreadedRender
                     inputDirectory = GetPath();
 
                     Console.WriteLine("Select Output Directoy: ");
-                    outputDirectory = GetPath();
+                    outputDirectory = GetPath() + "\\";
 
                     Console.WriteLine("Delete Tmp Pdfs (y/n)?");
                     bool deleteTmp = Console.ReadLine() == "y";
@@ -165,7 +165,7 @@ namespace MulitThreadedRender
                     break;
                 case AppMode.PdfCombine:
                     Console.WriteLine("Select Pdf Directory: ");
-                    string pdfDirectory = GetPath();
+                    string pdfDirectory = GetPath() + "\\";
 
                     Console.WriteLine();
 
@@ -190,7 +190,7 @@ namespace MulitThreadedRender
             {
                 path = Console.ReadLine();
             } while (path == null);
-            path = path + "\\";
+            path = path;
             return Regex.Replace(path, '"'.ToString(), string.Empty);
         }
 
