@@ -91,7 +91,8 @@ namespace MulitThreadedRender
     {
         SingleImage = 1,
         ImageSeries = 2,
-        PdfCombine = 3
+        PdfCombine = 3,
+        PdfOutline = 4
     }
     public struct threadData
     {
@@ -114,13 +115,13 @@ namespace MulitThreadedRender
             string st = System.Reflection.Assembly.GetExecutingAssembly().Location;
             Console.WriteLine(st);
 
-           // FileStream filestream = new FileStream("\\info.txt", FileMode.OpenOrCreate);
-           // byte[] data = new byte[filestream.Length];
-           // filestream.Read(data, 0, (int)filestream.Length);
+            // FileStream filestream = new FileStream("\\info.txt", FileMode.OpenOrCreate);
+            // byte[] data = new byte[filestream.Length];
+            // filestream.Read(data, 0, (int)filestream.Length);
 
-           //string str = System.Text.Encoding.UTF8.GetString(data);
+            //string str = System.Text.Encoding.UTF8.GetString(data);
 
-           // Console.WriteLine(str);
+            // Console.WriteLine(str);
 
 
 
@@ -128,11 +129,12 @@ namespace MulitThreadedRender
             Console.WriteLine("(1)" + AppMode.SingleImage);
             Console.WriteLine("(2)" + AppMode.ImageSeries);
             Console.WriteLine("(3)" + AppMode.PdfCombine);
+            Console.WriteLine("(4)" + AppMode.PdfOutline);
             ConsoleKeyInfo mode;
             do
             {
                 mode = Console.ReadKey();
-            } while (mode.KeyChar < 49 || mode.KeyChar > 51);
+            } while (mode.KeyChar < 49 || mode.KeyChar > 52);
 
 
             switch ((AppMode)(mode.KeyChar - 48))
@@ -171,16 +173,34 @@ namespace MulitThreadedRender
 
                     Console.Write("Pdf Name :");
 
+                    Console.WriteLine("Header Length: ");
+
+
+
                     string pdfName = Console.ReadLine();
 
                     CombinePdfs(GetFileSeries(pdfDirectory)).Save(pdfDirectory + pdfName + ".pdf");
+                    break;
+
+
+                case AppMode.PdfOutline:
+                    Console.WriteLine("Select Pdf Path: ");
+                    string path = GetPath();
+                    PdfDocument activePdf = PdfReader.Open(path, PdfDocumentOpenMode.Import);
+                    
+                    Console.WriteLine("Select Outline Path: ");
+                    string outlinePath = GetPath();
+
+                    OutlineParse[] outlineParses = ParseOutline(outlinePath);
+                    AddOutline(activePdf, outlineParses, 0).Save(path + "WithOutline");
 
                     break;
-               
+
+
             }
 
-            
-           
+
+
         }
 
         private static string GetPath()
@@ -198,7 +218,7 @@ namespace MulitThreadedRender
         {
             string[] files = Directory.GetFiles(Path);
             Dictionary<int, string> fileHash = new Dictionary<int, string>();
-            
+
 
             foreach (string file in files)
             {
@@ -220,6 +240,135 @@ namespace MulitThreadedRender
             return fileSort.ToArray();
         }
 
+        private static PdfDocument AddOutline(PdfDocument pdf, OutlineParse[] outlineParses, int startIndex)
+        {
+            PdfOutlineCollection outlines = pdf.Outlines;
+            outlines.Clear();
+            Queue<OutlineParse> parses = new(outlineParses.ToArray());
+
+            AddOutlineElement(pdf, outlines, parses, parses.Dequeue());
+
+
+            return pdf;
+        }
+
+
+
+
+        private static void AddOutlineElement(PdfDocument pdf, PdfOutlineCollection outline, Queue<OutlineParse> parses, OutlineParse current)
+        {
+            OutlineParse Future;
+            if (!parses.TryPeek(out Future))
+            {
+                outline.Add(current.Title, pdf.Pages[current.PageNum]);
+                return;
+            }
+
+            if(Future.IndentLvl < current.IndentLvl)
+            {
+                outline.Add(current.Title, pdf.Pages[current.PageNum]);
+                return;
+            }
+
+            if (Future.IndentLvl > current.IndentLvl)
+            {
+                AddOutlineElement(pdf, outline.Add(current.Title, pdf.Pages[current.PageNum]).Outlines, parses, parses.Dequeue());
+                if (!parses.TryDequeue(out current)) return;
+                AddOutlineElement(pdf, outline, parses, current);
+            }
+
+            if (Future.IndentLvl == current.IndentLvl)
+            {
+                outline.Add(current.Title, pdf.Pages[current.PageNum]);
+                AddOutlineElement(pdf, outline, parses, parses.Dequeue());
+                return;
+            }
+            return;
+        }
+
+
+
+        struct OutlineParse
+        {
+            public readonly string Title;
+            public readonly int IndentLvl;
+            public readonly int PageNum;
+            public OutlineParse(string Title,  int IndentLvl, int PageNum)
+            {
+                this.Title = Title;
+                this.IndentLvl = IndentLvl;
+                this.PageNum = PageNum;
+            }
+        }
+
+        private static OutlineParse ParseOutlineElement(string st, int header)
+        {
+            char[] chars = st.ToArray();
+            int start = 0;
+            bool inside = false;
+            int i;
+            for (i = 0; i < chars.Length; i++)
+            {
+                if (chars[i] == '"' && !inside)
+                {
+                    start = i + 1;
+                    inside = true;
+                }
+                else if (chars[i] == '"')
+                {
+                    i--;
+                    break;
+                }
+
+            }
+            char[] name = new Span<char>(chars, start, i - start + 1).ToArray();
+            string num = new string(new Span<char>(chars, i + 3, chars.Length - i - 3).ToArray());
+            int value = int.Parse(num);
+            int indentLvl = 0;
+            for(int t = 0; t < start; t++)
+            {
+                if (chars[t] == '+') indentLvl++;
+            }
+
+            return new OutlineParse(new string(name), indentLvl, value + header);
+
+        }
+
+        private static OutlineParse[] ParseOutline(string outlinePath)
+        {
+            StringReader sr;
+            try
+            {
+                FileStream fileStream = new FileStream(outlinePath, FileMode.Open);
+                byte[] bytes = new byte[fileStream.Length];
+                fileStream.Read(bytes, 0, bytes.Length);
+                string str = System.Text.Encoding.UTF8.GetString(bytes);
+                sr = new StringReader(str);
+            }
+            catch
+            {
+                Console.WriteLine("Failed To open Outline File");
+                return null;
+            }
+
+            //Do Meta Data
+
+           
+            int header = int.Parse(sr.ReadLine());
+          
+            
+            List<OutlineParse> result = new();
+            string ln = sr.ReadLine();
+            while (ln != null)
+            {
+               if (!string.IsNullOrWhiteSpace(ln))
+               {
+                    result.Add(ParseOutlineElement(ln, header));
+               }
+               ln = sr.ReadLine();
+            }
+            return result.ToArray();
+        }
         private static string GetFileName(string Path)
         {
             StringReader sr = new StringReader(Path);
@@ -338,6 +487,7 @@ namespace MulitThreadedRender
                     mainPdf.AddPage(activePdf.Pages[j]);
                 }
             }
+            
             return mainPdf;
          }
 
